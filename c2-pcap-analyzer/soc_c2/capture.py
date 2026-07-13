@@ -10,6 +10,9 @@ from typing import BinaryIO, Iterator
 from .models import CaptureFormatError, CapturedPacket, MAX_PACKET_BYTES
 
 
+MAX_PCAPNG_BLOCK_BYTES = MAX_PACKET_BYTES + 1_048_576
+
+
 def read_exact(handle: BinaryIO, size: int, context: str) -> bytes:
     data = handle.read(size)
     if len(data) != size:
@@ -74,7 +77,11 @@ def iter_pcapng(handle: BinaryIO, first_magic: bytes) -> Iterator[CapturedPacket
             else:
                 raise CaptureFormatError("Invalid PCAPNG byte-order magic")
             block_length = struct.unpack(endian + "I", raw_length)[0]
-            if block_length < 28 or block_length % 4:
+            if (
+                block_length < 28
+                or block_length % 4
+                or block_length > MAX_PCAPNG_BLOCK_BYTES
+            ):
                 raise CaptureFormatError("Invalid PCAPNG section header length")
             remainder = read_exact(handle, block_length - 12, "PCAPNG section header")
             if struct.unpack_from(endian + "I", remainder, len(remainder) - 4)[0] != block_length:
@@ -85,7 +92,7 @@ def iter_pcapng(handle: BinaryIO, first_magic: bytes) -> Iterator[CapturedPacket
                 raise CaptureFormatError("PCAPNG data appeared before a section header")
             block_type = struct.unpack(endian + "I", pending_type)[0]
             block_length = struct.unpack(endian + "I", raw_length)[0]
-            if block_length < 12 or block_length % 4 or block_length > MAX_PACKET_BYTES + 1_048_576:
+            if block_length < 12 or block_length % 4 or block_length > MAX_PCAPNG_BLOCK_BYTES:
                 raise CaptureFormatError(f"Invalid PCAPNG block length: {block_length}")
             block = read_exact(handle, block_length - 8, "PCAPNG block")
             if struct.unpack_from(endian + "I", block, len(block) - 4)[0] != block_length:
