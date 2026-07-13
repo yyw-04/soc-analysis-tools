@@ -1,4 +1,4 @@
-"""Command-line interface for passive PCAP analysis and decoding."""
+"""Command-line interface for automatic passive PCAP analysis and decoding."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .analysis import analyze_pcap
+from .automation import run_automatic_analysis
 from .transforms import decode_value
 from .models import AnalysisConfig, TOOL_VERSION
 from .reporting import print_human_summary, write_json_report
@@ -20,7 +20,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"%(prog)s {TOOL_VERSION}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    analyze = subparsers.add_parser("analyze", help="Analyze a PCAP/PCAPNG file read-only")
+    analyze = subparsers.add_parser(
+        "analyze", help="Automatically analyze a PCAP/PCAPNG file read-only"
+    )
     analyze.add_argument("pcap", type=Path)
     analyze.add_argument("--json-out", type=Path)
     analyze.add_argument("--max-packets", type=int, default=AnalysisConfig.max_packets)
@@ -34,6 +36,12 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("--beacon-max-cv", type=float, default=AnalysisConfig.beacon_max_cv)
     analyze.add_argument("--large-transfer-mb", type=float, default=AnalysisConfig.large_transfer_mb)
     analyze.add_argument("--http-limit", type=int, default=AnalysisConfig.http_record_limit)
+    analyze.add_argument(
+        "--decode-preview-bytes",
+        type=int,
+        default=128,
+        help="Bounded preview size for automatically decoded HTTP URI fields",
+    )
 
     decode = subparsers.add_parser(
         "decode", help="Decode one selected value; never execute or write decoded bytes"
@@ -77,7 +85,11 @@ def main(argv: list[str] | None = None) -> int:
             large_transfer_mb=args.large_transfer_mb,
             http_record_limit=args.http_limit,
         )
-        report = analyze_pcap(args.pcap, config)
+        report = run_automatic_analysis(
+            args.pcap,
+            config,
+            decode_preview_bytes=args.decode_preview_bytes,
+        )
         print_human_summary(report)
         if args.json_out:
             output = write_json_report(report, args.json_out, args.pcap)

@@ -35,6 +35,14 @@ def print_human_summary(report: dict[str, Any]) -> None:
         f"beacons={len(detections['beacon_candidates'])}, "
         f"large_transfers={len(detections['large_transfer_candidates'])}"
     )
+    automation = report.get("automation")
+    if automation:
+        encoded_count = len(automation["encoded_candidates"])
+        triage = automation["triage"]
+        print(
+            f"Automatic decoding candidates: {encoded_count} | "
+            f"Triage: {triage['assessment']} (score {triage['score']})"
+        )
     if metadata["truncated_at_packet_limit"]:
         print("Warning: packet limit reached; results cover only part of the capture.")
     print("Judgement: detections are investigation leads, not proof of malicious activity.")

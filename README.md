@@ -11,8 +11,9 @@ Modular tools for:
 - hosts, protocols, ports, DNS, and clear-text HTTP metadata;
 - port-scan and periodic-communication candidates;
 - high-volume flows requiring exfiltration review;
+- automatic bounded detection of encoded HTTP query values;
 - analyst-selected Base64, Base64URL, hexadecimal, and URL decoding;
-- optional offline RSA, AES-CBC, and HMAC analysis when exact keys and layouts are available;
+- first-class offline RSA, AES-CBC, and HMAC analysis when exact keys and layouts are available;
 - structured JSON reporting.
 
 ## Safety

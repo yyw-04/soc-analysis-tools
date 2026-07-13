@@ -1,4 +1,4 @@
-"""Command-line interface for optional offline C2 decryption helpers."""
+"""Command-line interface for offline C2 decryption helpers."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import os
 import sys
 from pathlib import Path
 
-from .crypto import CryptoUnavailableError, aes_cbc_decrypt, rsa_decrypt, verify_hmac
+from .crypto import aes_cbc_decrypt, rsa_decrypt, verify_hmac
 from .transforms import decode_value
 from .utils import printable_preview
 
@@ -147,6 +147,6 @@ def main(argv: list[str] | None = None) -> int:
             )
         _print_preview(plaintext, args.preview_bytes)
         return 0
-    except (CryptoUnavailableError, OSError, ValueError) as exc:
+    except (OSError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2

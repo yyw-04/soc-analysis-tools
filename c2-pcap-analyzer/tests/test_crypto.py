@@ -7,9 +7,6 @@ import pytest
 from soc_c2.crypto import aes_cbc_decrypt, rsa_decrypt, verify_hmac
 
 
-cryptography = pytest.importorskip("cryptography")
-
-
 def test_aes_cbc_decrypt_and_hmac_verification() -> None:
     from cryptography.hazmat.primitives import hashes, hmac, padding
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes

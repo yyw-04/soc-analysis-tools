@@ -1,37 +1,38 @@
 # Defensive C2/PCAP Tools
 
-Modular Python tools for SOC analysts reviewing suspicious PCAP or PCAPNG files and, when exact keys are available, testing selected encrypted C2 fields offline.
+Two modular Python tools for SOC analysts: an automatic, read-only PCAP analyzer and a separate offline decryption tool for analyst-selected C2 fields.
 
 > **Safety first:** Treat every capture, key, and decoded value as untrusted evidence. Use an isolated analysis VM or container. The tools never contact observed infrastructure, execute payloads, or automatically extract captured files.
 
-## Choose the correct component
+## Choose the tool
 
-| Component | Purpose | Dependency |
+| Tool | Purpose | Runtime |
 | --- | --- | --- |
-| `c2_pcap_analyzer.py` | Passive PCAP/PCAPNG metadata analysis, scan/beacon leads, JSON reporting, and simple decoding | Python standard library only |
-| `c2_crypto_helper.py` | Offline RSA or AES-CBC decryption and optional HMAC verification for one analyst-selected field | Optional `cryptography` package |
+| `c2_pcap_analyzer.py` | Automatic PCAP/PCAPNG metadata analysis, scan and beacon leads, encoded HTTP query detection, triage, and JSON reporting | Python standard library |
+| `c2_crypto_helper.py` | Offline RSA or AES-CBC decryption and HMAC verification for one analyst-selected field | `cryptography` |
 
-The crypto helper is not a universal C2 decryptor. It does not recover keys, locate encrypted fields, infer framework profiles, or guess cipher layouts.
+Both tools are installed together. The analyst chooses which Python file to run. The decryption tool is first-class, but it is not a universal C2 decryptor: it does not recover keys, infer framework profiles, or guess cipher layouts.
 
 ## Project structure
 
 ```text
 c2-pcap-analyzer/
-├── c2_pcap_analyzer.py       # Compatibility launcher: passive analyzer
-├── c2_crypto_helper.py       # Compatibility launcher: optional crypto helper
-├── pyproject.toml            # Core, crypto, and development dependencies
-├── soc_c2/
-│   ├── analysis.py           # Scan, beacon, and transfer heuristics
-│   ├── capture.py            # Bounded PCAP/PCAPNG reader
-│   ├── cli.py                # Passive analyzer CLI
-│   ├── crypto.py             # Tested RSA, AES-CBC, and HMAC primitives
-│   ├── crypto_cli.py         # Offline crypto CLI
-│   ├── models.py             # Configuration, models, and safety limits
-│   ├── protocols.py          # IP, TCP/UDP, DNS, and HTTP metadata parsing
-│   ├── reporting.py          # Human and JSON output
-│   ├── transforms.py         # Base64, Base64URL, URL, and hex transforms
-│   └── utils.py              # Hashing, timestamps, IP scope, and previews
-└── tests/
+|-- c2_pcap_analyzer.py       # Automatic passive analyzer launcher
+|-- c2_crypto_helper.py       # Offline decryption launcher
+|-- pyproject.toml            # Runtime and development dependencies
+|-- soc_c2/
+|   |-- analysis.py           # Scan, beacon, and transfer heuristics
+|   |-- automation.py         # Automatic stage coordination and triage
+|   |-- capture.py            # Bounded PCAP/PCAPNG reader
+|   |-- cli.py                # PCAP analyzer CLI
+|   |-- crypto.py             # Tested RSA, AES-CBC, and HMAC primitives
+|   |-- crypto_cli.py         # Decryption CLI
+|   |-- models.py             # Configuration, models, and safety limits
+|   |-- protocols.py          # IP, TCP/UDP, DNS, and HTTP metadata parsing
+|   |-- reporting.py          # Human and JSON output
+|   |-- transforms.py         # Base64, Base64URL, URL, and hex transforms
+|   `-- utils.py              # Hashing, timestamps, IP scope, and previews
+`-- tests/
 ```
 
 ## Safety boundaries
@@ -41,25 +42,18 @@ The tools:
 - open captures and selected inputs read-only;
 - never execute or import captured content;
 - never contact IP addresses, domains, or URLs found in evidence;
-- never write decrypted plaintext or packet payloads to disk;
-- display only a bounded plaintext preview;
-- enforce limits on capture, packet, key-file, decoded-input, and preview sizes;
+- never automatically extract captured files;
+- never create standalone decrypted payload files;
+- display and report only bounded decoded or decrypted previews;
+- enforce limits on captures, packets, key files, inputs, and previews;
 - treat every detection as an investigation lead, not a verdict.
 
 ## Installation
 
-Python 3.10 or newer is required.
-
-Passive analyzer only:
+Python 3.10 or newer is required. Install both tools and the required `cryptography` runtime:
 
 ```bash
 python -m pip install .
-```
-
-Analyzer plus RSA/AES/HMAC support:
-
-```bash
-python -m pip install ".[crypto]"
 ```
 
 Development and tests:
@@ -68,26 +62,25 @@ Development and tests:
 python -m pip install ".[dev]"
 ```
 
-Dependencies are defined once in `pyproject.toml`:
+Dependencies are defined once in `pyproject.toml`: `cryptography` is a normal runtime dependency and `pytest` is the only development extra.
 
-- core installation: no third-party runtime dependency;
-- `crypto` extra: `cryptography`;
-- `dev` extra: `pytest` and `cryptography`.
-
-## Passive PCAP analysis
+## Automatic PCAP analysis
 
 ```bash
 python c2_pcap_analyzer.py analyze suspicious.pcap
 ```
 
-Save a structured report:
+Save a structured report and control the decoded preview size:
 
 ```bash
 python c2_pcap_analyzer.py analyze suspicious.pcap \
+  --decode-preview-bytes 128 \
   --json-out reports/suspicious-report.json
 ```
 
-The analyzer records the input SHA-256, time range, endpoints, protocols, destination ports, DNS queries and answers, and clear-text HTTP request metadata. It highlights vertical scans, horizontal scans, periodic communication, and large directional flows for investigation.
+The analyzer reads the capture once. It records the SHA-256, time range, endpoints, protocols, destination ports, DNS, and clear-text HTTP request metadata. It highlights vertical scans, horizontal scans, periodic communication, and large directional flows. It also checks retained HTTP query values for bounded Base64, Base64URL, hexadecimal, or URL-decoding candidates and produces an explainable triage score.
+
+Automatic decoding is a lead only. Ordinary applications also use encoded identifiers. The analyzer intentionally avoids automatic path-segment decoding because ordinary asset names and slugs create too many false positives.
 
 ### Important analyzer limitations
 
@@ -97,7 +90,7 @@ The analyzer records the input SHA-256, time range, endpoints, protocols, destin
 - Encrypted application content remains encrypted.
 - No detection only lowers suspicion; it does not prove safety.
 
-## Decode a selected representation
+## Decode one selected representation
 
 Base64, Base64URL, hexadecimal, and URL encoding are transformations, not encryption.
 
@@ -107,7 +100,7 @@ python c2_pcap_analyzer.py decode --encoding hex --value "48656c6c6f"
 python c2_pcap_analyzer.py decode --encoding url --value "%48%65%6c%6c%6f"
 ```
 
-## Offline AES-CBC decryption
+## AES-CBC decryption tool
 
 Set only values confirmed by the lab, malware configuration, memory evidence, or framework documentation.
 
@@ -133,9 +126,9 @@ python c2_crypto_helper.py aes-cbc \
   --hmac-input iv-ciphertext
 ```
 
-HMAC verification happens before decryption. A failed tag stops the operation. Do not use `iv-ciphertext`, a truncated tag, or any tag placement unless the protocol layout confirms it.
+HMAC verification happens before decryption. A failed tag stops the operation. Use the correct authentication coverage and tag length from the confirmed protocol layout.
 
-## Offline RSA decryption
+## RSA decryption tool
 
 OAEP with SHA-256:
 
@@ -171,28 +164,25 @@ python c2_crypto_helper.py rsa \
 ## Correct decryption workflow
 
 1. Identify the suspected host, destination, stream, direction, and timestamp.
-2. Extract only the exact cookie, URI value, body, or binary field needed.
+2. Select only the exact cookie, URI value, body, or binary field needed.
 3. Reverse confirmed transforms such as URL encoding, Base64URL, or hex.
 4. Confirm the framework or protocol layout.
-5. Record the key source, algorithm, mode, IV/nonce, authentication coverage, tag placement, and padding.
-6. Verify authentication before decryption when the protocol uses a MAC/tag.
+5. Record the key source, algorithm, mode, IV or nonce, authentication coverage, tag placement, and padding.
+6. Verify authentication before decryption when the protocol uses a MAC or tag.
 7. Decrypt offline and review only a bounded preview.
 8. Record limitations honestly; failed decryption does not prove benign traffic.
 
-## Framework-specific support
-
-Different C2 frameworks do not share one encryption format. Framework adapters should be added as separate modules only after their packet layout, transforms, key derivation, and version behaviour are documented and tested. The generic crypto helper supplies primitives; it does not pretend that RSA/AES/HMAC parameters alone describe a complete protocol.
+Different C2 frameworks do not share one encryption format. Framework adapters should remain separate modules and should be added only after their packet layout, transforms, key derivation, and version behaviour are documented and tested.
 
 ## Tests
 
 ```bash
 python -m pip install ".[dev]"
 python -m pytest -q
-python -m py_compile c2_pcap_analyzer.py c2_crypto_helper.py soc_c2/*.py
 ```
 
 Tests use synthetic packets, keys, and ciphertext. They do not download malware, contact external systems, or execute captured content.
 
 ## Analyst judgement rule
 
-Do not decide from one indicator or one successful decode. Combine timing, endpoints, DNS, HTTP/TLS metadata, endpoint telemetry, identity, threat intelligence, decrypted evidence, scope, user impact, and business context before assigning a verdict.
+Do not decide from one indicator or one successful decode. Combine timing, endpoints, DNS, HTTP or TLS metadata, endpoint telemetry, identity, threat intelligence, decrypted evidence, scope, user impact, and business context before assigning a verdict.
