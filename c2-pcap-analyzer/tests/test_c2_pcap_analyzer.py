@@ -6,7 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from soc_c2 import AnalysisConfig, analyze_pcap, decode_value, write_json_report
+from soc_c2 import (
+    AnalysisConfig,
+    analyze_pcap,
+    decode_value,
+    run_automatic_analysis,
+    write_json_report,
+)
+from soc_c2.automation import discover_encoded_http_values
+from soc_c2.transforms import decode_detected_layers
 from soc_c2.protocols import dns_name
 
 
@@ -64,6 +72,14 @@ def test_decode_supported_encodings() -> None:
     assert decode_value("SGVsbG8", "base64url") == b"Hello"
     assert decode_value("48656c6c6f", "hex") == b"Hello"
     assert decode_value("%48%65%6c%6c%6f", "url") == b"Hello"
+    assert decode_detected_layers("SGVsbG8gU09DIGFuYWx5c3Q=") == (
+        b"Hello SOC analyst",
+        ["base64"],
+    )
+    assert decode_detected_layers("SGVsbG8gU09DIGFuYWx5c3Q%3D") == (
+        b"Hello SOC analyst",
+        ["url", "base64"],
+    )
 
 
 def test_decode_rejects_invalid_input() -> None:
@@ -107,7 +123,7 @@ def test_detects_scan_beacon_dns_and_http_without_extracting(tmp_path: Path) -> 
             ethernet(ipv4("10.0.0.30", "8.8.8.8", 17, udp(53_000, 53, dns_query("example.test")))),
         )
     )
-    http = b"GET /status HTTP/1.1\r\nHost: test.invalid\r\n\r\n"
+    http = b"GET /status?data=SGVsbG8gU09DIGFuYWx5c3Q= HTTP/1.1\r\nHost: test.invalid\r\n\r\n"
     packets.append(
         (
             1_700_002_010.0,
@@ -118,7 +134,7 @@ def test_detects_scan_beacon_dns_and_http_without_extracting(tmp_path: Path) -> 
     pcap = tmp_path / "synthetic.pcap"
     write_pcap(pcap, packets)
     before = {item.name for item in tmp_path.iterdir()}
-    report = analyze_pcap(
+    report = run_automatic_analysis(
         pcap,
         AnalysisConfig(
             max_packets=10_000,
@@ -143,6 +159,27 @@ def test_detects_scan_beacon_dns_and_http_without_extracting(tmp_path: Path) -> 
     assert report["dns"]["top_queries"][0]["query"] == "example.test"
     assert report["http"]["requests"][0]["host"] == "test.invalid"
     assert "body" not in report["http"]["requests"][0]
+    assert report["automation"]["mode"] == "automatic"
+    assert (
+        report["automation"]["encoded_candidates"][0]["decoded_text_preview"]
+        == "Hello SOC analyst"
+    )
+    assert report["automation"]["triage"]["assessment"] == "suspicious"
+
+
+def test_automatic_decoder_ignores_ordinary_path_segments() -> None:
+    report = {
+        "http": {
+            "requests": [
+                {
+                    "target": "/assets/jquery-3.3.1.min.js",
+                    "source": "10.0.0.1",
+                    "destination": "203.0.113.1",
+                }
+            ]
+        }
+    }
+    assert discover_encoded_http_values(report) == []
 
 
 def test_packet_limit_marks_report_truncated(tmp_path: Path) -> None:
