@@ -1,9 +1,8 @@
-"""Optional offline cryptographic primitives for authorized C2 analysis.
+"""Offline cryptographic primitives for authorized C2 analysis.
 
-The module imports ``cryptography`` lazily so passive PCAP analysis remains
-dependency-free. These helpers do not identify framework layouts or recover
-keys automatically; the analyst must provide the correct algorithm, key,
-IV/nonce, padding, authentication tag, and extracted ciphertext.
+These helpers do not identify framework layouts or recover keys automatically;
+the analyst must provide the correct algorithm, key, IV/nonce, padding,
+authentication tag, and extracted ciphertext.
 """
 
 from __future__ import annotations
@@ -11,27 +10,13 @@ from __future__ import annotations
 import hmac as stdlib_hmac
 from pathlib import Path
 
-
-class CryptoUnavailableError(RuntimeError):
-    """Raised when the optional cryptography dependency is unavailable."""
-
-
-def _imports():
-    try:
-        from cryptography.hazmat.primitives import hashes, hmac, padding
-        from cryptography.hazmat.primitives.asymmetric import padding as asymmetric_padding
-        from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-        from cryptography.hazmat.primitives.serialization import load_pem_private_key
-    except ImportError as exc:
-        raise CryptoUnavailableError(
-            "Optional cryptography support is not installed. Run: "
-            "python -m pip install '.[crypto]'"
-        ) from exc
-    return hashes, hmac, padding, asymmetric_padding, Cipher, algorithms, modes, load_pem_private_key
+from cryptography.hazmat.primitives import hashes, hmac, padding
+from cryptography.hazmat.primitives.asymmetric import padding as asymmetric_padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 
 def _hash_algorithm(name: str):
-    hashes, *_ = _imports()
     choices = {
         "sha1": hashes.SHA1,
         "sha256": hashes.SHA256,
@@ -51,8 +36,7 @@ def verify_hmac(data: bytes, key: bytes, tag: bytes, algorithm: str = "sha256") 
         raise ValueError("HMAC key must not be empty")
     if not tag:
         raise ValueError("HMAC tag must not be empty")
-    _, crypto_hmac, *_ = _imports()
-    context = crypto_hmac.HMAC(key, _hash_algorithm(algorithm))
+    context = hmac.HMAC(key, _hash_algorithm(algorithm))
     context.update(data)
     calculated = context.finalize()
     if len(tag) > len(calculated):
@@ -70,12 +54,11 @@ def aes_cbc_decrypt(ciphertext: bytes, key: bytes, iv: bytes, *, unpad: bool = T
     if not ciphertext or len(ciphertext) % 16:
         raise ValueError("AES-CBC ciphertext must be non-empty and a multiple of 16 bytes")
 
-    _, _, symmetric_padding, _, Cipher, algorithms, modes, _ = _imports()
     decryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).decryptor()
     plaintext = decryptor.update(ciphertext) + decryptor.finalize()
     if not unpad:
         return plaintext
-    unpadder = symmetric_padding.PKCS7(128).unpadder()
+    unpadder = padding.PKCS7(128).unpadder()
     try:
         return unpadder.update(plaintext) + unpadder.finalize()
     except ValueError as exc:
@@ -101,7 +84,6 @@ def rsa_decrypt(
     if key_path.stat().st_size > 1_048_576:
         raise ValueError("Private key file exceeds the 1 MiB safety limit")
 
-    hashes, _, _, asymmetric_padding, _, _, _, load_pem_private_key = _imports()
     try:
         private_key = load_pem_private_key(key_path.read_bytes(), password=password)
     except (TypeError, ValueError) as exc:
