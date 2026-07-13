@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from c2_pcap_analyzer import AnalysisConfig, analyze_pcap, decode_value, write_json_report
+from soc_c2 import AnalysisConfig, analyze_pcap, decode_value, write_json_report
+from soc_c2.protocols import dns_name
 
 
 def ethernet(payload: bytes, ethertype: int = 0x0800) -> bytes:
@@ -171,3 +172,27 @@ def test_rejects_unknown_capture_format(tmp_path: Path) -> None:
     bad.write_bytes(b"not a capture")
     with pytest.raises(ValueError, match="Unable to parse capture"):
         analyze_pcap(bad, AnalysisConfig())
+
+
+def test_rejects_oversized_pcapng_section_before_reading_body(tmp_path: Path) -> None:
+    capture = tmp_path / "oversized-section.pcapng"
+    capture.write_bytes(
+        b"\x0a\x0d\x0d\x0a"
+        + struct.pack("<I", 0x7FFFFFFC)
+        + b"\x4d\x3c\x2b\x1a"
+    )
+
+    with pytest.raises(ValueError, match="Invalid PCAPNG section header length"):
+        analyze_pcap(capture, AnalysisConfig())
+
+
+def test_dns_compression_pointer_depth_is_bounded() -> None:
+    data = bytearray((130 * 2) + 1)
+    for offset in range(0, 130 * 2, 2):
+        pointer = offset + 2
+        data[offset] = 0xC0 | ((pointer >> 8) & 0x3F)
+        data[offset + 1] = pointer & 0xFF
+    data[-1] = 0
+
+    with pytest.raises(ValueError, match="pointer depth exceeded"):
+        dns_name(bytes(data), 0)

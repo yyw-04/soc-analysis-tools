@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "soc-c2-tools"
+version = "2.0.0"
+description = "Defensive PCAP analysis and optional offline C2 cryptography helpers"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "yyw-04"}]
+dependencies = []
+
+[project.optional-dependencies]
+crypto = ["cryptography>=42,<48"]
+dev = ["pytest>=8,<10", "cryptography>=42,<48"]
+
+[project.scripts]
+c2-pcap-analyzer = "soc_c2.cli:main"
+c2-crypto-helper = "soc_c2.crypto_cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["soc_c2*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

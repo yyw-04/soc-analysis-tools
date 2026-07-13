@@ -4,14 +4,15 @@ Defensive utilities for SOC investigation, traffic analysis, and incident report
 
 ## Tools
 
-### [C2/PCAP Analyzer](c2-pcap-analyzer/)
+### [Defensive C2/PCAP Tools](c2-pcap-analyzer/)
 
-Read-only PCAP/PCAPNG triage for:
+Modular tools for:
 
 - hosts, protocols, ports, DNS, and clear-text HTTP metadata;
 - port-scan and periodic-communication candidates;
 - high-volume flows requiring exfiltration review;
 - analyst-selected Base64, Base64URL, hexadecimal, and URL decoding;
+- optional offline RSA, AES-CBC, and HMAC analysis when exact keys and layouts are available;
 - structured JSON reporting.
 
 ## Safety
