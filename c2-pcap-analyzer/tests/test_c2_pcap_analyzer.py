@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from c2_pcap_analyzer import AnalysisConfig, analyze_pcap, decode_value, write_json_report
+from soc_c2 import AnalysisConfig, analyze_pcap, decode_value, write_json_report
 
 
 def ethernet(payload: bytes, ethertype: int = 0x0800) -> bytes:
