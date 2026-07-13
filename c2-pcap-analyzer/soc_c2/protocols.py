@@ -154,7 +154,14 @@ def parse_ip_packet(data: bytes, linktype: int) -> ParsedPacket | None:
     return None
 
 
-def dns_name(data: bytes, offset: int, seen: set[int] | None = None) -> tuple[str, int]:
+def dns_name(
+    data: bytes,
+    offset: int,
+    seen: set[int] | None = None,
+    depth: int = 0,
+) -> tuple[str, int]:
+    if depth > 128:
+        raise ValueError("DNS compression pointer depth exceeded")
     labels: list[str] = []
     original_offset = offset
     jumped = False
@@ -171,7 +178,7 @@ def dns_name(data: bytes, offset: int, seen: set[int] | None = None) -> tuple[st
             if offset + 2 > len(data):
                 raise ValueError("Truncated DNS pointer")
             pointer = ((length & 0x3F) << 8) | data[offset + 1]
-            pointed, _ = dns_name(data, pointer, seen)
+            pointed, _ = dns_name(data, pointer, seen, depth + 1)
             labels.append(pointed)
             if not jumped:
                 original_offset = offset
