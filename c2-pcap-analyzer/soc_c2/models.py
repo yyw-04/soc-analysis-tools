@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 
 TOOL_NAME = "c2-pcap-analyzer"
-TOOL_VERSION = "2.0.0"
+TOOL_VERSION = "2.1.0"
 MAX_PACKET_BYTES = 16 * 1024 * 1024
 MAX_DECODE_INPUT = 1_048_576
 HTTP_METHODS = (
