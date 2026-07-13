@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compatibility launcher for the modular passive PCAP analyzer."""
+"""Launcher for automatic, read-only PCAP analysis."""
 
 from soc_c2.cli import main
 
