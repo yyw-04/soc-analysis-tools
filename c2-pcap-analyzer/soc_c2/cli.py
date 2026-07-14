@@ -15,46 +15,137 @@ from .utils import printable_preview
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Read-only defensive PCAP/C2 triage. Never executes or extracts payloads."
+        description="Read-only defensive PCAP/C2 triage. Never executes or extracts payloads.",
+        epilog=(
+            "Run a subcommand with --help for its fields, for example: "
+            "python c2_pcap_analyzer.py analyze --help"
+        ),
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {TOOL_VERSION}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     analyze = subparsers.add_parser(
-        "analyze", help="Automatically analyze a PCAP/PCAPNG file read-only"
+        "analyze",
+        help="Automatically analyze a PCAP/PCAPNG file read-only",
+        description=(
+            "Analyze one PCAP/PCAPNG file read-only and report metadata, scan leads, "
+            "beacon leads, large flows, and bounded decoded HTTP query previews."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    analyze.add_argument("pcap", type=Path)
-    analyze.add_argument("--json-out", type=Path)
-    analyze.add_argument("--max-packets", type=int, default=AnalysisConfig.max_packets)
-    analyze.add_argument("--max-file-mb", type=int, default=AnalysisConfig.max_file_mb)
-    analyze.add_argument("--scan-window", type=float, default=AnalysisConfig.scan_window_seconds)
-    analyze.add_argument("--scan-port-threshold", type=int, default=AnalysisConfig.scan_port_threshold)
-    analyze.add_argument("--scan-host-threshold", type=int, default=AnalysisConfig.scan_host_threshold)
-    analyze.add_argument("--beacon-min-events", type=int, default=AnalysisConfig.beacon_min_events)
-    analyze.add_argument("--beacon-min-interval", type=float, default=AnalysisConfig.beacon_min_interval)
-    analyze.add_argument("--beacon-max-interval", type=float, default=AnalysisConfig.beacon_max_interval)
-    analyze.add_argument("--beacon-max-cv", type=float, default=AnalysisConfig.beacon_max_cv)
-    analyze.add_argument("--large-transfer-mb", type=float, default=AnalysisConfig.large_transfer_mb)
-    analyze.add_argument("--http-limit", type=int, default=AnalysisConfig.http_record_limit)
+    analyze.add_argument(
+        "pcap",
+        type=Path,
+        help="Path to the PCAP or PCAPNG evidence file",
+    )
+    analyze.add_argument(
+        "--json-out",
+        type=Path,
+        help="Write the full structured report to this JSON path",
+    )
+    analyze.add_argument(
+        "--max-packets",
+        type=int,
+        default=AnalysisConfig.max_packets,
+        help="Stop after this many packets to control runtime and memory use",
+    )
+    analyze.add_argument(
+        "--max-file-mb",
+        type=int,
+        default=AnalysisConfig.max_file_mb,
+        help="Refuse capture files larger than this size in MiB",
+    )
+    analyze.add_argument(
+        "--scan-window",
+        type=float,
+        default=AnalysisConfig.scan_window_seconds,
+        help="Time window in seconds used to group possible scan activity",
+    )
+    analyze.add_argument(
+        "--scan-port-threshold",
+        type=int,
+        default=AnalysisConfig.scan_port_threshold,
+        help="Different destination ports required for a vertical-scan lead",
+    )
+    analyze.add_argument(
+        "--scan-host-threshold",
+        type=int,
+        default=AnalysisConfig.scan_host_threshold,
+        help="Different destination hosts required for a horizontal-scan lead",
+    )
+    analyze.add_argument(
+        "--beacon-min-events",
+        type=int,
+        default=AnalysisConfig.beacon_min_events,
+        help="Repeated flow events required before checking periodicity",
+    )
+    analyze.add_argument(
+        "--beacon-min-interval",
+        type=float,
+        default=AnalysisConfig.beacon_min_interval,
+        help="Shortest average callback interval accepted as a beacon lead, in seconds",
+    )
+    analyze.add_argument(
+        "--beacon-max-interval",
+        type=float,
+        default=AnalysisConfig.beacon_max_interval,
+        help="Longest average callback interval accepted as a beacon lead, in seconds",
+    )
+    analyze.add_argument(
+        "--beacon-max-cv",
+        type=float,
+        default=AnalysisConfig.beacon_max_cv,
+        help=(
+            "Maximum timing coefficient of variation; lower values require more "
+            "regular callbacks and are stricter"
+        ),
+    )
+    analyze.add_argument(
+        "--large-transfer-mb",
+        type=float,
+        default=AnalysisConfig.large_transfer_mb,
+        help="Directional flow size in MiB that creates a large-transfer lead",
+    )
+    analyze.add_argument(
+        "--http-limit",
+        type=int,
+        default=AnalysisConfig.http_record_limit,
+        help="Maximum clear-text HTTP request records retained in the report",
+    )
     analyze.add_argument(
         "--decode-preview-bytes",
         type=int,
         default=128,
-        help="Bounded preview size for automatically decoded HTTP URI fields",
+        help="Maximum bytes shown for automatically decoded HTTP query values",
     )
 
     decode = subparsers.add_parser(
-        "decode", help="Decode one selected value; never execute or write decoded bytes"
+        "decode",
+        help="Decode one selected value; never execute or write decoded bytes",
+        description=(
+            "Decode one analyst-selected representation and display only bounded "
+            "hexadecimal and printable previews."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    decode.add_argument("--value", required=True)
+    decode.add_argument(
+        "--value",
+        required=True,
+        help="Value copied from a URI, cookie, header, body, or other selected field",
+    )
     decode.add_argument(
         "--encoding",
         choices=("auto", "base64", "base64url", "hex", "url"),
         default="auto",
+        help="Representation to decode before displaying the bounded preview",
     )
-    decode.add_argument("--preview-bytes", type=int, default=256)
+    decode.add_argument(
+        "--preview-bytes",
+        type=int,
+        default=256,
+        help="Maximum decoded bytes displayed; the result is not written or executed",
+    )
     return parser
-
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
@@ -98,3 +189,4 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
+
