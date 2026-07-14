@@ -89,6 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Offline RSA/AES/HMAC helper for authorized defensive analysis. "
             "Requires exact analyst-supplied keys and layout."
         ),
+        allow_abbrev=False,
         epilog=(
             "Run a subcommand with --help for its fields, for example: "
             "python c2_crypto_helper.py aes-cbc --help"
@@ -98,6 +99,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     aes = subparsers.add_parser(
         "aes-cbc",
+        allow_abbrev=False,
         help="Verify optional HMAC, then decrypt one AES-CBC ciphertext",
         description=(
             "Decrypt one selected AES-CBC ciphertext using a confirmed key and IV. "
@@ -144,6 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     rsa = subparsers.add_parser(
         "rsa",
+        allow_abbrev=False,
         help="Decrypt one RSA ciphertext from an extracted field",
         description=(
             "Decrypt one selected RSA ciphertext using an analyst-provided PEM "
@@ -210,4 +213,3 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
-
