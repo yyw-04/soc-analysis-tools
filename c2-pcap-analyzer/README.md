@@ -71,10 +71,8 @@ Use the built-in help as the main option reference. The top-level help lists the
 ```bash
 python c2_pcap_analyzer.py --help
 python c2_pcap_analyzer.py analyze --help
-python c2_pcap_analyzer.py decode --help
 python c2_crypto_helper.py --help
 python c2_crypto_helper.py aes-cbc --help
-python c2_crypto_helper.py rsa --help
 ```
 
 No option abbreviations are defined. Full names such as `--json-out`, `--key-hex`, and `--iv-hex` are clearer during evidence handling and reduce input mistakes.
@@ -278,4 +276,3 @@ Tests use synthetic packets, keys, and ciphertext. They do not download malware,
 ## Analyst judgement rule
 
 Do not decide from one indicator or one successful decode. Combine timing, endpoints, DNS, HTTP or TLS metadata, endpoint telemetry, identity, threat intelligence, decrypted evidence, scope, user impact, and business context before assigning a verdict.
-
