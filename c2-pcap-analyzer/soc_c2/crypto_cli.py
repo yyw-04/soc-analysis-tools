@@ -17,16 +17,30 @@ MAX_BLOB_BYTES = 16 * 1024 * 1024
 
 def _add_blob_arguments(parser: argparse.ArgumentParser) -> None:
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--value", help="Encoded ciphertext supplied directly")
-    source.add_argument("--input-file", type=Path, help="File containing raw or encoded ciphertext")
+    source.add_argument(
+        "--value",
+        help="Ciphertext supplied directly as text; use instead of --input-file",
+    )
+    source.add_argument(
+        "--input-file",
+        type=Path,
+        help="File containing raw or encoded ciphertext; use instead of --value",
+    )
     parser.add_argument(
         "--encoding",
         choices=("raw", "auto", "base64", "base64url", "hex", "url"),
         default="base64",
-        help="Representation of the selected ciphertext",
+        help=(
+            "Representation to reverse before decryption; use raw only for binary "
+            "file input"
+        ),
     )
-    parser.add_argument("--preview-bytes", type=int, default=256)
-
+    parser.add_argument(
+        "--preview-bytes",
+        type=int,
+        default=256,
+        help="Maximum decrypted bytes displayed; plaintext is not written to disk",
+    )
 
 def _load_blob(args: argparse.Namespace) -> bytes:
     if args.value is not None:
@@ -74,32 +88,79 @@ def build_parser() -> argparse.ArgumentParser:
         description=(
             "Offline RSA/AES/HMAC helper for authorized defensive analysis. "
             "Requires exact analyst-supplied keys and layout."
-        )
+        ),
+        allow_abbrev=False,
+        epilog=(
+            "Run a subcommand with --help for its fields, for example: "
+            "python c2_crypto_helper.py aes-cbc --help"
+        ),
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    aes = subparsers.add_parser("aes-cbc", help="Verify optional HMAC, then decrypt AES-CBC")
+    aes = subparsers.add_parser(
+        "aes-cbc",
+        allow_abbrev=False,
+        help="Verify optional HMAC, then decrypt one AES-CBC ciphertext",
+        description=(
+            "Decrypt one selected AES-CBC ciphertext using a confirmed key and IV. "
+            "If an HMAC key and tag are supplied, verify them before decryption."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     _add_blob_arguments(aes)
-    aes.add_argument("--key-hex", required=True, help="16, 24, or 32-byte AES key in hex")
-    aes.add_argument("--iv-hex", required=True, help="Exactly 16-byte CBC IV in hex")
-    aes.add_argument("--no-unpad", action="store_true", help="Do not remove PKCS7 padding")
-    aes.add_argument("--hmac-key-hex", help="Optional HMAC key in hex")
-    aes.add_argument("--hmac-tag-hex", help="Expected full or truncated HMAC tag in hex")
+    aes.add_argument(
+        "--key-hex",
+        required=True,
+        help="Confirmed 16, 24, or 32-byte AES key in hexadecimal",
+    )
+    aes.add_argument(
+        "--iv-hex",
+        required=True,
+        help="Confirmed 16-byte CBC initialization vector in hexadecimal",
+    )
+    aes.add_argument(
+        "--no-unpad",
+        action="store_true",
+        help="Keep the final block unchanged instead of removing PKCS7 padding",
+    )
+    aes.add_argument(
+        "--hmac-key-hex",
+        help="Confirmed HMAC key in hexadecimal; requires --hmac-tag-hex",
+    )
+    aes.add_argument(
+        "--hmac-tag-hex",
+        help="Expected full or truncated HMAC tag in hex; requires --hmac-key-hex",
+    )
     aes.add_argument(
         "--hmac-algorithm",
         choices=("sha1", "sha256", "sha384", "sha512"),
         default="sha256",
+        help="Hash algorithm used by the confirmed HMAC layout",
     )
     aes.add_argument(
         "--hmac-input",
         choices=("ciphertext", "iv-ciphertext"),
         default="ciphertext",
-        help="Exact bytes covered by the supplied HMAC tag",
+        help="Bytes authenticated by the tag: ciphertext, or IV followed by ciphertext",
     )
 
-    rsa = subparsers.add_parser("rsa", help="Decrypt one RSA ciphertext from an extracted field")
+    rsa = subparsers.add_parser(
+        "rsa",
+        allow_abbrev=False,
+        help="Decrypt one RSA ciphertext from an extracted field",
+        description=(
+            "Decrypt one selected RSA ciphertext using an analyst-provided PEM "
+            "private key and confirmed padding."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     _add_blob_arguments(rsa)
-    rsa.add_argument("--private-key", type=Path, required=True)
+    rsa.add_argument(
+        "--private-key",
+        type=Path,
+        required=True,
+        help="Path to the analyst-provided PEM private key",
+    )
     rsa.add_argument(
         "--padding",
         choices=("oaep-sha256", "pkcs1v15"),
@@ -108,10 +169,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     rsa.add_argument(
         "--key-password-env",
-        help="Environment variable containing the PEM password; avoids placing it in command history",
+        help=(
+            "Environment variable containing an encrypted PEM password; avoids "
+            "placing the password in command history"
+        ),
     )
     return parser
-
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
