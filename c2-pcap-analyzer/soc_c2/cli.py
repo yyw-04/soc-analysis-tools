@@ -16,6 +16,7 @@ from .utils import printable_preview
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Read-only defensive PCAP/C2 triage. Never executes or extracts payloads.",
+        allow_abbrev=False,
         epilog=(
             "Run a subcommand with --help for its fields, for example: "
             "python c2_pcap_analyzer.py analyze --help"
@@ -26,6 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     analyze = subparsers.add_parser(
         "analyze",
+        allow_abbrev=False,
         help="Automatically analyze a PCAP/PCAPNG file read-only",
         description=(
             "Analyze one PCAP/PCAPNG file read-only and report metadata, scan leads, "
@@ -121,6 +123,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     decode = subparsers.add_parser(
         "decode",
+        allow_abbrev=False,
         help="Decode one selected value; never execute or write decoded bytes",
         description=(
             "Decode one analyst-selected representation and display only bounded "
@@ -189,4 +192,3 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
-
